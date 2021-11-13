@@ -3,3 +3,6 @@ null
 .bsp
 project/target
 target
+spark-warehouse
+metastore_db
+derby.log

@@ -2,10 +2,9 @@ package com.hackpro
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
 import org.apache.spark.sql.{SQLContext, SparkSession}
-
-import java.io.File
 
 object SparkContextVsSparkSession extends App {
 
@@ -27,9 +26,9 @@ object SparkContextVsSparkSession extends App {
   )
 
   //  Spark Context
-  println("\n*********************** SparkContext Results ************************")
   val sparkContext = new SparkContext("local", "SparkContext")
   val sourceFile = sparkContext.textFile("src/main/resources/Used_Bikes.csv")
+  println("\n*********************** SparkContext Results ************************")
   sourceFile.take(5).foreach(println)
   sparkContext.stop()
 
@@ -48,13 +47,32 @@ object SparkContextVsSparkSession extends App {
   sparkContext1.stop()
 
   // Hive Context
-  /* val sparkContext2 = new SparkContext("local", "HiveContext")
-   val hiveContext = new HiveContext(sparkContext2)*/
+  println("\n*********************** Spark HiveContext Results ************************")
+  val sparkContext2 = new SparkContext("local", "HiveContext")
+  val hiveContext = new HiveContext(sparkContext2)
+
+  import hiveContext.{sql => contextHiveSQL}
+
+  contextHiveSQL("create database IF NOT EXISTS organization")
+  contextHiveSQL(
+    """
+      |CREATE TABLE IF NOT EXISTS organization.employee
+      |(emp_id INTEGER, emp_name STRING, role STRING)
+      |""".stripMargin)
+
+  contextHiveSQL(
+    """
+      |INSERT INTO organization.employee(emp_id, emp_name, role)
+      |values(1, 'Mano', 'UI Developer'), (2, 'Senthil', 'Data Scientist'), (3, 'Vengat', 'Data Engineer')
+      |""".stripMargin)
+
+  contextHiveSQL("select * from organization.employee").show(10, truncate = false)
+  sparkContext2.stop()
+
 
   // Spark Session
   val sparkSession = SparkSession.builder().master("local").appName("SparkSession").getOrCreate()
-  sparkSession.sparkContext.hadoopConfiguration.set("fs.defaultFS", "hdfs://192.168.228.128:9000")
-  val sparkSessionSourceFiles = sparkSession.read.schema(bike_schema).csv("/user/vengat/datasets/Used_Bikes.csv")
+  val sparkSessionSourceFiles = sparkSession.read.schema(bike_schema).csv("src/main/resources/Used_Bikes.csv")
 
   println("\n*********************** SparkSession Results ************************")
   sparkSessionSourceFiles.show(5, truncate = false)
@@ -70,35 +88,29 @@ object SparkContextVsSparkSession extends App {
   sparkSession.stop()
 
   println("\n*********************** SparkSession with Hive Results ************************")
-  val warehouseLocation = new File("spark-warehouse").getAbsolutePath
   val hiveSession = SparkSession
     .builder()
     .master("local")
     .appName("hiveSession")
-    .config("spark.sql.warehouse.dir", warehouseLocation)
     .enableHiveSupport()
     .getOrCreate()
-  hiveSession.sparkContext.hadoopConfiguration.set("fs.defaultFS", "hdfs://hadoop-master:9000")
 
-  import hiveSession.sql
+  import hiveSession.sqlContext.{sql => sessionHiveSQL}
 
-  sql(
+  sessionHiveSQL("create database IF NOT EXISTS video_games")
+  sessionHiveSQL(
     """
-      |CREATE TABLE IF NOT EXISTS bikes_db.USED_BIKES (model STRING, price DOUBLE, location STRING, kms_driven DOUBLE,
-      |owner STRING, age DOUBLE, cc DOUBLE, brand STRING)
+      |CREATE TABLE IF NOT EXISTS video_games.battle_royal_games
+      |(game_name STRING, compatibility STRING, price DOUBLE)
       |""".stripMargin)
 
-  sql(
+  sessionHiveSQL(
     """
-      |LOAD DATA LOCAL INPATH '/user/vengat/datasets/Used_Bikes.csv' INTO TABLE bikes_db.USED_BIKES
+      |INSERT INTO video_games.battle_royal_games(game_name, compatibility, price)
+      |values('CALL OF DUTY', 'PC/MOBILE', 2000.00), ('PUBG', 'PC/MOBILE', 2500.10), ('FORTNITE', 'PC/MOBILE/PS5', 3000.50)
       |""".stripMargin)
 
-
-  sql(
-    """
-      |select * from used_bikes where brand = 'Honda'
-      |""".stripMargin)
-    .show(10, truncate = false)
+  sessionHiveSQL("select * from video_games.battle_royal_games").show(10, truncate = false)
 
 
 }
