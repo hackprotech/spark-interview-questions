@@ -77,6 +77,10 @@ object SparkContextVsSparkSession extends App {
   println("\n*********************** SparkSession Results ************************")
   sparkSessionSourceFiles.show(5, truncate = false)
 
+  println("\n*********************** SparkSession with SparkContext Results ************************")
+  val sourceFileSc = sparkSession.sparkContext.textFile("src/main/resources/Used_Bikes.csv")
+  sourceFileSc.take(10).foreach(println)
+
   println("\n*********************** SparkSession SQL Results ************************")
   sparkSessionSourceFiles.createOrReplaceTempView("t_used_bikes_list")
   val tvsBikes = sparkSession.sql(
